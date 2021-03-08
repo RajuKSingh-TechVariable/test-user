@@ -5,16 +5,15 @@ export class User extends Entity {
   @property({
     type: 'number',
     id: true,
-    generated: false,
-    required: true,
+    generated: true,
   })
-  id: number;
+  id?: number;
 
   @property({
     type: 'string',
     required: true,
   })
-  userName: string;
+  email: string;
 
   @property({
     type: 'string',
@@ -24,9 +23,16 @@ export class User extends Entity {
 
   @property({
     type: 'string',
+    required: true,
   })
-  userAvatarPath?: string;
+  firstName: string;
 
+  @property({
+    type: 'string',
+    required: true,
+  })
+  lastName: string;
+  username: string | undefined;
 
   constructor(data?: Partial<User>) {
     super(data);

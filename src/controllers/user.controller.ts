@@ -1,3 +1,5 @@
+import {authenticate, AuthenticationBindings} from '@loopback/authentication';
+import {inject} from '@loopback/core';
 import {
   Count,
   CountSchema,
@@ -7,54 +9,142 @@ import {
   Where,
 } from '@loopback/repository';
 import {
-  post,
-  param,
-  get,
-  getModelSchemaRef,
-  patch,
-  put,
   del,
+  get,
+  getJsonSchemaRef,
+  getModelSchemaRef,
+  param,
+  patch,
+  post,
+  put,
   requestBody,
   response,
 } from '@loopback/rest';
+import {UserProfile} from '@loopback/security';
+import * as _ from 'lodash';
+import {
+  PasswordHasherBindings,
+  TokenServiceBindings,
+  UserServiceBindings,
+} from '../keys';
 import {User} from '../models';
-import {UserRepository} from '../repositories';
+import {Credentials, UserRepository} from '../repositories';
+import {validateCredentials} from '../services';
+import {BcryptHasher} from '../services/hash.password';
+import {JWTService} from '../services/jwt-service';
+import {MyUserService} from '../services/user-service';
+import {OPERATION_SECURITY_SPEC} from '../utils/security-spec';
 
 export class UserController {
   constructor(
     @repository(UserRepository)
-    public userRepository : UserRepository,
+    public userRepository: UserRepository,
+
+    @inject(PasswordHasherBindings.PASSWORD_HASHER)
+    public hasher: BcryptHasher,
+
+    @inject(UserServiceBindings.USER_SERVICE)
+    public userService: MyUserService,
+
+    @inject(TokenServiceBindings.TOKEN_SERVICE)
+    public jwtService: JWTService,
   ) {}
 
-  @post('/users')
-  @response(200, {
-    description: 'User model instance',
-    content: {'application/json': {schema: getModelSchemaRef(User)}},
-  })
-  async create(
-    @requestBody({
-      content: {
-        'application/json': {
-          schema: getModelSchemaRef(User, {
-            title: 'NewUser',
-            
-          }),
+  @post('/signup', {
+    responses: {
+      '200': {
+        description: 'User',
+        content: {
+          schema: getJsonSchemaRef(User),
         },
       },
-    })
-    user: User,
-  ): Promise<User> {
-    return this.userRepository.create(user);
+    },
+  })
+  async signup(@requestBody() userData: User) {
+    validateCredentials(_.pick(userData, ['email', 'password']));
+    userData.password = await this.hasher.hashPassword(userData.password);
+    const savedUser = await this.userRepository.create(userData);
+    return savedUser;
   }
+
+  @post('/login', {
+    responses: {
+      '200': {
+        description: 'Token',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                token: {
+                  type: 'string',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  async login(
+    @requestBody() credentials: Credentials,
+  ): Promise<{token: string}> {
+    const user = await this.userService.verifyCredentials(credentials);
+
+    // eslint-disable-next-line @typescript-eslint/await-thenable
+    const userProfile = await this.userService.convertToUserProfile(user);
+
+    const token = await this.jwtService.generateToken(userProfile);
+    return Promise.resolve({token: token});
+  }
+
+  @authenticate('jwt')
+  @get('/users/me', {
+    security: OPERATION_SECURITY_SPEC,
+    responses: {
+      '200': {
+        description: 'The curernt user profile',
+        content: {
+          'application/json': {
+            schema: getJsonSchemaRef(User),
+          },
+        },
+      },
+    },
+  })
+  async me(
+    @inject(AuthenticationBindings.CURRENT_USER)
+    currentUser: UserProfile,
+  ): Promise<UserProfile> {
+    return Promise.resolve(currentUser);
+  }
+
+  // @post('/users')
+  // @response(200, {
+  //   description: 'User model instance',
+  //   content: {'application/json': {schema: getModelSchemaRef(User)}},
+  // })
+  // async create(
+  //   @requestBody({
+  //     content: {
+  //       'application/json': {
+  //         schema: getModelSchemaRef(User, {
+  //           title: 'NewUser',
+  //         }),
+  //       },
+  //     },
+  //   })
+  //   user: User,
+  // ): Promise<User> {
+  //   return this.userRepository.create(user);
+  // }
 
   @get('/users/count')
   @response(200, {
     description: 'User model count',
     content: {'application/json': {schema: CountSchema}},
   })
-  async count(
-    @param.where(User) where?: Where<User>,
-  ): Promise<Count> {
+  async count(@param.where(User) where?: Where<User>): Promise<Count> {
     return this.userRepository.count(where);
   }
 
@@ -70,9 +160,7 @@ export class UserController {
       },
     },
   })
-  async find(
-    @param.filter(User) filter?: Filter<User>,
-  ): Promise<User[]> {
+  async find(@param.filter(User) filter?: Filter<User>): Promise<User[]> {
     return this.userRepository.find(filter);
   }
 
@@ -106,7 +194,7 @@ export class UserController {
   })
   async findById(
     @param.path.number('id') id: number,
-    @param.filter(User, {exclude: 'where'}) filter?: FilterExcludingWhere<User>
+    @param.filter(User, {exclude: 'where'}) filter?: FilterExcludingWhere<User>,
   ): Promise<User> {
     return this.userRepository.findById(id, filter);
   }
