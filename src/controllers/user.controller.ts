@@ -138,7 +138,7 @@ export class UserController {
   // ): Promise<User> {
   //   return this.userRepository.create(user);
   // }
-
+  @authenticate('jwt')
   @get('/users/count')
   @response(200, {
     description: 'User model count',
@@ -147,7 +147,7 @@ export class UserController {
   async count(@param.where(User) where?: Where<User>): Promise<Count> {
     return this.userRepository.count(where);
   }
-
+  @authenticate('jwt')
   @get('/users')
   @response(200, {
     description: 'Array of User model instances',
@@ -163,7 +163,7 @@ export class UserController {
   async find(@param.filter(User) filter?: Filter<User>): Promise<User[]> {
     return this.userRepository.find(filter);
   }
-
+  @authenticate('jwt')
   @patch('/users')
   @response(200, {
     description: 'User PATCH success count',
@@ -182,7 +182,7 @@ export class UserController {
   ): Promise<Count> {
     return this.userRepository.updateAll(user, where);
   }
-
+  @authenticate('jwt')
   @get('/users/{id}')
   @response(200, {
     description: 'User model instance',
@@ -198,7 +198,7 @@ export class UserController {
   ): Promise<User> {
     return this.userRepository.findById(id, filter);
   }
-
+  @authenticate('jwt')
   @patch('/users/{id}')
   @response(204, {
     description: 'User PATCH success',
@@ -216,7 +216,7 @@ export class UserController {
   ): Promise<void> {
     await this.userRepository.updateById(id, user);
   }
-
+  @authenticate('jwt')
   @put('/users/{id}')
   @response(204, {
     description: 'User PUT success',
@@ -227,7 +227,7 @@ export class UserController {
   ): Promise<void> {
     await this.userRepository.replaceById(id, user);
   }
-
+  @authenticate('jwt')
   @del('/users/{id}')
   @response(204, {
     description: 'User DELETE success',
